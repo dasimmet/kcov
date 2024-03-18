@@ -11,3 +11,6 @@
 kcov
 build
 obj-*/
+.cache
+/zig-cache
+/zig-out

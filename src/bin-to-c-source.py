@@ -2,7 +2,7 @@
 
 import sys, struct
 
-def generate(data_in, base_name):
+def generate(data, base_name):
 	print("const uint8_t %s_data_raw[] = {" % (base_name))
 
 	for i in range(0, len(data), 20):
