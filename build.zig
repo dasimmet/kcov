@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const version: std.SemanticVersion = .{ .major = 43, .minor = 0, .patch = 0 };
+const version = std.SemanticVersion.parse(@import("build.zig.zon").version) catch unreachable;
 
 pub fn build(b: *std.Build) void {
     const upstream = b.dependency("kcov", .{});
@@ -89,14 +89,17 @@ pub fn build(b: *std.Build) void {
     // TODO utilize C23 #embed
     const bin_to_c_source = b.addExecutable(.{
         .name = "bin_to_c_source",
-        .root_source_file = b.path("bin_to_c_source.zig"),
-        .target = b.graph.host,
-        .optimize = .ReleaseSafe,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("bin_to_c_source.zig"),
+            .target = b.graph.host,
+            .optimize = .ReleaseSafe,
+        }),
     });
 
     const library_cc = blk: {
         const run_bin_to_c_source = b.addRunArtifact(bin_to_c_source);
         run_bin_to_c_source.max_stdio_size = 32 * 1024 * 1024; // 32MiB
+        run_bin_to_c_source.clearEnvironment();
         run_bin_to_c_source.addArtifactArg(kcov_sowrapper);
         run_bin_to_c_source.addArg("__library");
         break :blk renameLazyPath(b, run_bin_to_c_source.captureStdOut(), "library.cc");
@@ -105,6 +108,7 @@ pub fn build(b: *std.Build) void {
     const bash_redirector_library_cc = blk: {
         const run_bin_to_c_source = b.addRunArtifact(bin_to_c_source);
         run_bin_to_c_source.max_stdio_size = 32 * 1024 * 1024; // 32MiB
+        run_bin_to_c_source.clearEnvironment();
         run_bin_to_c_source.addArtifactArg(bash_execve_redirector);
         run_bin_to_c_source.addArg("bash_redirector_library");
         break :blk renameLazyPath(b, run_bin_to_c_source.captureStdOut(), "bash-redirector-library.cc");
@@ -113,6 +117,7 @@ pub fn build(b: *std.Build) void {
     const bash_cloexec_library_cc = blk: {
         const run_bin_to_c_source = b.addRunArtifact(bin_to_c_source);
         run_bin_to_c_source.max_stdio_size = 32 * 1024 * 1024; // 32MiB
+        run_bin_to_c_source.clearEnvironment();
         run_bin_to_c_source.addArtifactArg(bash_tracefd_cloexec);
         run_bin_to_c_source.addArg("bash_cloexec_library");
         break :blk renameLazyPath(b, run_bin_to_c_source.captureStdOut(), "bash-cloexec-library.cc");
@@ -120,6 +125,7 @@ pub fn build(b: *std.Build) void {
 
     const kcov_system_library_cc = blk: {
         const run_bin_to_c_source = b.addRunArtifact(bin_to_c_source);
+        run_bin_to_c_source.clearEnvironment();
         run_bin_to_c_source.max_stdio_size = 256 * 1024 * 1024; // 256MiB
         run_bin_to_c_source.addArtifactArg(kcov_system_lib);
         run_bin_to_c_source.addArg("kcov_system_library");
@@ -129,6 +135,7 @@ pub fn build(b: *std.Build) void {
     const python_helper_cc = blk: {
         const run_bin_to_c_source = b.addRunArtifact(bin_to_c_source);
         run_bin_to_c_source.max_stdio_size = 32 * 1024 * 1024; // 32MiB
+        run_bin_to_c_source.clearEnvironment();
         run_bin_to_c_source.addFileArg(upstream.path("src/engines/python-helper.py"));
         run_bin_to_c_source.addArg("python_helper");
         break :blk renameLazyPath(b, run_bin_to_c_source.captureStdOut(), "python-helper.cc");
@@ -137,6 +144,7 @@ pub fn build(b: *std.Build) void {
     const bash_helper_cc = blk: {
         const run_bin_to_c_source = b.addRunArtifact(bin_to_c_source);
         run_bin_to_c_source.max_stdio_size = 32 * 1024 * 1024; // 32MiB
+        run_bin_to_c_source.clearEnvironment();
         run_bin_to_c_source.addFileArg(upstream.path("src/engines/bash-helper.sh"));
         run_bin_to_c_source.addArg("bash_helper");
         run_bin_to_c_source.addFileArg(upstream.path("src/engines/bash-helper-debug-trap.sh"));
@@ -146,6 +154,7 @@ pub fn build(b: *std.Build) void {
 
     const html_data_files_cc = blk: {
         const run_bin_to_c_source = b.addRunArtifact(bin_to_c_source);
+        run_bin_to_c_source.clearEnvironment();
         run_bin_to_c_source.max_stdio_size = 32 * 1024 * 1024; // 32MiB
         for (
             [_][]const u8{
@@ -183,7 +192,7 @@ pub fn build(b: *std.Build) void {
 
     const version_c = blk: {
         const write_files = b.addWriteFiles();
-        break :blk write_files.add("version.c", b.fmt("const char *kcov_version = \"{}\";", .{version}));
+        break :blk write_files.add("version.c", b.fmt("const char *kcov_version = \"{f}\";", .{version}));
     };
 
     const kcov = b.addExecutable(.{

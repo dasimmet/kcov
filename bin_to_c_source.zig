@@ -3,7 +3,7 @@
 
 const std = @import("std");
 
-fn generate(writer: std.io.AnyWriter, data: []const u8, base_name: []const u8) !void {
+fn generate(writer: *std.Io.Writer, data: []const u8, base_name: []const u8) std.Io.Writer.Error!void {
     try writer.print("const uint8_t {s}_data_raw[] = {{\n", .{base_name});
 
     for (data, 0..) |c, i| {
@@ -24,17 +24,19 @@ fn generate(writer: std.io.AnyWriter, data: []const u8, base_name: []const u8) !
 }
 
 pub fn main() !void {
-    var general_purpose_allocator: std.heap.GeneralPurposeAllocator(.{}) = .{};
-    defer _ = general_purpose_allocator.deinit();
-    const gpa = general_purpose_allocator.allocator();
+    var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
+    defer _ = debug_allocator.deinit();
+    const gpa = debug_allocator.allocator();
 
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    var buffered_stdout = std.io.bufferedWriter(std.io.getStdOut().writer());
-    const stdout = buffered_stdout.writer();
+    var buffer: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&buffer);
+    const stdout = &stdout_writer.interface;
 
-    const stderr = std.io.getStdErr().writer();
+    var stderr_writer = std.fs.File.stderr().writer(&.{});
+    const stderr = &stderr_writer.interface;
 
     if (args.len < 3 or (args.len - 1) % 2 != 0) {
         try stderr.print("Usage: {s} <file> <base-name> [<file2> <base-name2>]\n", .{args[0]});
@@ -57,8 +59,8 @@ pub fn main() !void {
         const data = try std.fs.cwd().readFileAlloc(gpa, file, std.math.maxInt(usize));
         defer gpa.free(data);
 
-        try generate(stdout.any(), data, base_name);
+        try generate(stdout, data, base_name);
     }
 
-    try buffered_stdout.flush();
+    try stdout.flush();
 }
