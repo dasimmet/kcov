@@ -1,7 +1,7 @@
 .{
     .name = .kcov,
     .version = "43.0.0",
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .kcov = .{
             .url = "git+https://github.com/SimonKagstrom/kcov?ref=v43#a39874f938ce13f7a65f253120d1ec946b349ffe",
